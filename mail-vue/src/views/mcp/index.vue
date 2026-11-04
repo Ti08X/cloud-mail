@@ -16,6 +16,17 @@
             </div>
           </div>
 
+          <div class="item setting-row">
+            <div>{{ $t('mcpKeyTitle') }}</div>
+            <div class="endpoint-row">
+              <span class="key-hint">{{ $t('mcpKeyHint') }}</span>
+              <el-button size="small" type="primary" :loading="keyLoading" @click="copyKey">
+                {{ copied.key ? $t('mcpCopied') : $t('mcpCopyKey') }}
+              </el-button>
+            </div>
+            <p v-if="keyError" class="key-error">{{ $t('mcpKeyError') }}</p>
+          </div>
+
           <div class="title">{{ $t('mcpStepsTitle') }}</div>
           <ol class="steps">
             <li>{{ $t('mcpStep1') }}</li>
@@ -43,12 +54,15 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import { MCP_DEPLOY_PROMPT } from './deploy-prompt.js';
+import { getMcpKey } from '@/request/mcp.js';
 
 const endpoint = 'https://mail.zgatri.com/mcp/';
 const deployPrompt = MCP_DEPLOY_PROMPT;
-const copied = reactive({ endpoint: false, prompt: false });
+const copied = reactive({ endpoint: false, prompt: false, key: false });
+const keyLoading = ref(false);
+const keyError = ref(false);
 
 async function copyText(text, key) {
   try {
@@ -65,6 +79,19 @@ async function copyText(text, key) {
   setTimeout(() => {
     copied[key] = false;
   }, 2000);
+}
+
+async function copyKey() {
+  keyError.value = false;
+  keyLoading.value = true;
+  try {
+    const data = await getMcpKey();
+    await copyText(data.key, 'key');
+  } catch {
+    keyError.value = true;
+  } finally {
+    keyLoading.value = false;
+  }
 }
 </script>
 
@@ -151,5 +178,15 @@ async function copyText(text, key) {
 .note {
   line-height: 1.7;
   margin: 14px 0 0;
+}
+
+.key-hint {
+  line-height: 1.7;
+}
+
+.key-error {
+  color: var(--el-color-danger);
+  line-height: 1.7;
+  margin: 0;
 }
 </style>

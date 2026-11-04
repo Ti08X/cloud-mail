@@ -78,3 +78,21 @@ auth). Its deploy prompt text lives in
 `mail-vue/public/mcp-deploy-prompt.txt` is generated from that module so the
 two stay identical. The prompt never contains a key: it instructs the agent
 to ask the user for the key before configuring anything.
+
+## Admin key retrieval (copy button)
+
+`GET /api/mcp/key` (`mail-worker/src/api/mcp-key-api.js`, registered in
+`hono/webs.js`) returns the configured `MCP_AUTH_KEY` so the logged-in
+admin can copy it from the landing page (`mail-vue/src/views/mcp/index.vue`,
+button backed by `mail-vue/src/request/mcp.js`) without storing the key
+elsewhere. Safety rules, all deliberate:
+
+- The global security middleware already requires a valid login session;
+  the handler additionally requires the session user to be `env.admin`
+  (any other logged-in user gets 403), because the key is admin-equivalent.
+- Unset key returns a configuration error, never an empty value.
+- The handler logs nothing and the page never renders the key as text:
+  the button copies it straight to the clipboard.
+- The key is never baked into the frontend bundle, the deploy prompt, or
+  the public `mcp-deploy-prompt.txt` — those stay keyless. The button
+  only works after login, over the authenticated `/api/` path.
