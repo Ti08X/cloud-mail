@@ -312,15 +312,22 @@ function visibleTools(env) {
 	return isWriteEnabled(env) ? [...READ_TOOLS, ...WRITE_TOOLS] : READ_TOOLS;
 }
 
-function normalizeEmailIds(value) {
-	if (Array.isArray(value)) {
-		const ids = value.map(Number).filter((n) => !Number.isNaN(n));
-		if (!ids.length) throw new Error('missing or invalid required parameter: emailIds');
-		return ids.join(',');
+// Accept a numeric array, a comma-separated string, or a JSON-stringified
+// array. Some MCP clients serialize array arguments as strings, so brackets,
+// quotes and whitespace are stripped before parsing.
+function parseEmailIds(value) {
+	let raw = value;
+	if (typeof raw === 'string') {
+		raw = raw.replace(/[\[\]"'\s]/g, '');
 	}
-	if (typeof value === 'string' && value.trim()) return value;
-	if (typeof value === 'number' && !Number.isNaN(value)) return String(value);
-	throw new Error('missing or invalid required parameter: emailIds');
+	const list = Array.isArray(raw) ? raw : String(raw === undefined || raw === null ? '' : raw).split(',');
+	const ids = list.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+	if (!ids.length) throw new Error('missing or invalid required parameter: emailIds');
+	return ids;
+}
+
+function normalizeEmailIds(value) {
+	return parseEmailIds(value).join(',');
 }
 
 async function callTool(ctx, name, args = {}) {
@@ -462,12 +469,7 @@ async function callTool(ctx, name, args = {}) {
 		case 'mail_mark_read': {
 			// emailService.read expects a numeric array (inArray), unlike
 			// emailService.delete which takes a comma-separated string.
-			const ids = (Array.isArray(args.emailIds)
-				? args.emailIds
-				: String(args.emailIds === undefined ? '' : args.emailIds).split(','))
-				.map(Number)
-				.filter((n) => !Number.isNaN(n) && n > 0);
-			if (!ids.length) throw new Error('missing or invalid required parameter: emailIds');
+			const ids = parseEmailIds(args.emailIds);
 			await emailService.read(ctx, { emailIds: ids }, userId);
 			return textResult({ markedRead: ids });
 		}
