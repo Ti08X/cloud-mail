@@ -257,6 +257,55 @@ const WRITE_TOOLS = [
 			additionalProperties: false,
 		},
 	},
+	{
+		name: 'mail_mark_read',
+		description: 'Mark mails as read. emailIds may be a comma-separated string or a list of ids.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				emailIds: { description: 'Comma-separated ids or a list of ids (required).' },
+			},
+			required: ['emailIds'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'account_set_name',
+		description: 'Rename a mailbox account (max 30 characters).',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				accountId: { type: 'number', description: 'Account id (required).' },
+				name: { type: 'string', description: 'New display name (required).' },
+			},
+			required: ['accountId', 'name'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'account_set_all_receive',
+		description: 'Toggle "receive all mail" for one account. The flag is exclusive: enabling it clears the others.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				accountId: { type: 'number', description: 'Account id (required).' },
+			},
+			required: ['accountId'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'account_set_top',
+		description: 'Pin an account to the top of the mailbox list.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				accountId: { type: 'number', description: 'Account id (required).' },
+			},
+			required: ['accountId'],
+			additionalProperties: false,
+		},
+	},
 ];
 
 function visibleTools(env) {
@@ -409,6 +458,34 @@ async function callTool(ctx, name, args = {}) {
 			const accountId = requireNumber(args.accountId, 'accountId');
 			await accountService.delete(ctx, { accountId }, userId);
 			return textResult({ deleted: accountId });
+		}
+		case 'mail_mark_read': {
+			// emailService.read expects a numeric array (inArray), unlike
+			// emailService.delete which takes a comma-separated string.
+			const ids = (Array.isArray(args.emailIds)
+				? args.emailIds
+				: String(args.emailIds === undefined ? '' : args.emailIds).split(','))
+				.map(Number)
+				.filter((n) => !Number.isNaN(n) && n > 0);
+			if (!ids.length) throw new Error('missing or invalid required parameter: emailIds');
+			await emailService.read(ctx, { emailIds: ids }, userId);
+			return textResult({ markedRead: ids });
+		}
+		case 'account_set_name': {
+			const accountId = requireNumber(args.accountId, 'accountId');
+			if (!args.name) throw new Error('missing or invalid required parameter: name');
+			await accountService.setName(ctx, { accountId, name: String(args.name) }, userId);
+			return textResult({ accountId, name: String(args.name) });
+		}
+		case 'account_set_all_receive': {
+			const accountId = requireNumber(args.accountId, 'accountId');
+			await accountService.setAllReceive(ctx, { accountId }, userId);
+			return textResult({ accountId, toggled: 'allReceive' });
+		}
+		case 'account_set_top': {
+			const accountId = requireNumber(args.accountId, 'accountId');
+			await accountService.setAsTop(ctx, { accountId }, userId);
+			return textResult({ accountId, toggled: 'top' });
 		}
 		default:
 			throw new Error(`unknown tool: ${name}`);
