@@ -30,6 +30,22 @@ export default {
 			return handleMcpRequest(req, env);
 		}
 
+		// MCP clients (Streamable HTTP) open a server->client stream with
+		// GET + Accept: text/event-stream. This server is stateless and never
+		// pushes messages, so answer 405 (allowed by the spec) instead of
+		// falling through to the SPA: a text/html body makes the client treat
+		// the stream as broken and reconnect in a tight loop (~12 req/s).
+		// Browser visits to /mcp send Accept: text/html and still get the SPA.
+		if ((url.pathname === '/mcp' || url.pathname === '/mcp/') && req.method === 'GET') {
+			const accept = req.headers.get('Accept') || '';
+			if (accept.includes('text/event-stream')) {
+				return new Response(null, {
+					status: 405,
+					headers: { 'Allow': 'POST, OPTIONS' }
+				});
+			}
+		}
+
 		if (url.pathname.startsWith('/oss/')) {
 			const key = url.pathname.slice('/oss/'.length);
 			const resp = await r2Service.toObjResp({ env }, key);
